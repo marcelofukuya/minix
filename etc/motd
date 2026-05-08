@@ -7,9 +7,7 @@ https://wiki.minix3.org
 
 We'd like your feedback: https://minix3.org/community/
 
-printf("\n");
-printf("===================================================\n");
-printf("|  OBRIGADO POR ESTAR AQUI - SO - UNIFESP 1s2026  |\n");
-printf("|         Projeto Pratico (I) - Equipe 10         |\n");
-printf("===================================================\n");
-printf("\n");
+===================================================
+|  OBRIGADO POR ESTAR AQUI - SO - UNIFESP 1s2026  |
+|         Projeto Pratico (I) - Equipe 10         |
+===================================================
