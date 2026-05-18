@@ -80,7 +80,7 @@ int do_newexec(void)
 	if (r != OK)
 		panic("do_newexec: sys_datacopy failed: %d", r);
 
-	/* Alteração para print de execução */
+	/* Alteração aqui para print de execução */
 	printf("Executando:   %s\n", args.progname);
 
 	allow_setuid = 0;	/* Do not allow setuid execution */
