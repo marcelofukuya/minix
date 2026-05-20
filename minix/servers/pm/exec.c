@@ -28,8 +28,14 @@
 #include <sys/ptrace.h>
 #include "mproc.h"
 
+//Adição para print de execução
+#include <limits.h>
+
 #define ESCRIPT	(-2000)	/* Returned by read_header for a #! script. */
 #define PTRSIZE	sizeof(char *) /* Size of pointers in argv[] and envp[]. */
+
+//Adição para print de execução
+static char exec_path[NR_PROCS][PATH_MAX];
 
 /*===========================================================================*
  *				do_exec					     *
@@ -48,6 +54,26 @@ do_exec(void)
 	m.VFS_PM_FRAME = (void *)m_in.m_lc_pm_exec.frame;
 	m.VFS_PM_FRAME_LEN = m_in.m_lc_pm_exec.framelen;
 	m.VFS_PM_PS_STR = m_in.m_lc_pm_exec.ps_str;
+
+	//Adição para print de execução
+	int slot;
+	size_t len;
+
+	slot = mp - mproc;
+	len = m_in.m_lc_pm_exec.namelen;
+
+	if (len >= PATH_MAX) len = PATH_MAX - 1;
+
+	if (sys_datacopy(mp->mp_endpoint, 
+		(vir_bytes)m_in.m_lc_pm_exec.name, 
+		SELF, 
+		(vir_bytes)exec_path[slot], 
+		len) == OK) {
+			exec_path[slot][len] = '\0';
+		}
+	else {
+		strcpy(exec_path[slot], "");
+	}
 
 	tell_vfs(mp, &m);
 
@@ -80,8 +106,13 @@ int do_newexec(void)
 	if (r != OK)
 		panic("do_newexec: sys_datacopy failed: %d", r);
 
-	/* Alteração aqui para print de execução */
-	printf("Executando:   %s\n", args.progname);
+	//Adição para print de execução
+	if (exec_path[proc_n][0] != '\0') {
+		printf("Executando:   %s\n", exec_path[proc_n]);
+	}
+	else {
+		printf("Executando:   %s\n", args.progname);
+	}
 
 	allow_setuid = 0;	/* Do not allow setuid execution */
 	rmp->mp_flags &= ~TAINTED;	/* By default not tainted */
