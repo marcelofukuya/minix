@@ -15,7 +15,24 @@
 
 static unsigned balance_timeout;
 
+//Adições para o algoritmo de fração justa
+static unsigned fair_share_usage[2] = {0, 0};
+
+static int fair_share_group(int proc_nr_n) {
+		return proc_nr_n % 2;
+}
+
 #define BALANCE_TIMEOUT	5 /* how often to balance queues in seconds */
+
+//Adição para o algoritmo Round-Robin
+#define DEFAULT_USER_TIME_SLICE 200
+
+//Adição para os algoritmos desenvolvidos
+#define ALG_RR 1
+#define ALG_PRIORITY 2
+#define ALG_FAIR_SHARE 3
+
+#define SCHED_ALG ALG_RR //ALG_PRIORITY //ALG_FAIR_SHARE
 
 static int schedule_process(struct schedproc * rmp, unsigned flags);
 
@@ -37,8 +54,6 @@ static int schedule_process(struct schedproc * rmp, unsigned flags);
 #define CPU_DEAD	-1
 
 #define cpu_is_available(c)	(cpu_proc[c] >= 0)
-
-#define DEFAULT_USER_TIME_SLICE 200
 
 /* processes created by RS are sysytem processes */
 #define is_system_proc(p)	((p)->parent == RS_PROC_NR)
@@ -96,9 +111,36 @@ int do_noquantum(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
-	if (rmp->priority < MIN_USER_Q) {
-		rmp->priority += 1; /* lower priority */
-	}
+
+	#if SCHED_ALG == ALG_RR //Se for Round-Robin
+			rmp->priority = USER_Q;
+			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+	#elif SCHED_ALG == ALG_PRIORITY //Se for algoritmo por prioridade
+			rmp->priority = rmp->max_priority;
+			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+	#elif SCHED_ALG == ALG_FAIR_SHARE
+			{
+				int group = fair_share_group(proc_nr_n);
+				int other_group = 1 - group;
+
+				fair_share_usage[group]++;
+
+				if (fair_Share_usage[group] > fair_share_usage[other_group] + 2) {
+						rmp->priority = USER_Q + 2;
+						rmp->time_slice = DEFAULT_USER_TIME_SLICE / 2;
+				}
+				else {
+						rmp->priority = USER_Q;
+						rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+				}
+
+				rmp->max_priority = USER_Q;
+			}
+	#else
+			if (rmp->priority < MIN_USER_Q) {
+				rmp->priority += 1; /* lower priority */
+			}
+	#endif
 
 	if ((rv = schedule_process_local(rmp)) != OK) {
 		return rv;
@@ -212,6 +254,30 @@ int do_start_scheduling(message *m_ptr)
 		/* not reachable */
 		assert(0);
 	}
+
+	#if SCHED_ALG == ALG_RR //Se for round-robin
+			rmp->priority = USER_Q;
+			rmp->max_priority = USER_Q;
+			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+	#elif SCHED_ALG == ALG_PRIORITY //Se for algoritmo de prioridade
+			if (proc_nr_n % 2 == 0) {
+					rmp->priority = USER_Q;
+					rmp->max_priority = USER_Q;
+			}
+			else {
+					rmp->priority = USER_Q + 2;
+					rmp->max_priority = USER_Q + 2;
+			}
+			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+	#elif SCHED_ALG == ALG_FAIR_SHARE
+			rmp->priority = USER_Q;
+			rmp->max_priority = USER_Q;
+			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+	#else
+			if (rmp->priority < MIN_USER_Q) {
+				rmp->priority += 1;
+			}
+	#endif
 
 	/* Take over scheduling the process. The kernel reply message populates
 	 * the processes current priority and its time slice */
@@ -336,6 +402,11 @@ void init_scheduling(void)
 	int r;
 
 	balance_timeout = BALANCE_TIMEOUT * sys_hz();
+
+	#if SCHED_ALG == ALG_FAIR_SHARE
+			fair_share_usage[0] = fair_share_usage[0] / 2;
+			fair_share_usage[1] = fair_share_usage[1] / 2;
+	#endif
 
 	if ((r = sys_setalarm(balance_timeout, 0)) != OK)
 		panic("sys_setalarm failed: %d", r);
