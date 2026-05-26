@@ -125,7 +125,7 @@ int do_noquantum(message *m_ptr)
 
 				fair_share_usage[group]++;
 
-				if (fair_Share_usage[group] > fair_share_usage[other_group] + 2) {
+				if (fair_share_usage[group] > fair_share_usage[other_group] + 2) {
 						rmp->priority = USER_Q + 2;
 						rmp->time_slice = DEFAULT_USER_TIME_SLICE / 2;
 				}
