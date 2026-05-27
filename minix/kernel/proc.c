@@ -96,6 +96,12 @@ static void set_idle_name(char * name, int n)
 #define PICK_ANY	1
 #define PICK_HIGHERONLY	2
 
+/* Algoritmos de escolha no kernel */
+#define KERNEL_SCHED_DEFAULT 1
+#define KERNEL_SCHED_LOTTERY 2
+
+#define KERNEL_SCHED_ALG KERNEL_SCHED_DEFAULT
+
 #define BuildNotifyMessage(m_ptr, src, dst_ptr) \
 	memset((m_ptr), 0, sizeof(*(m_ptr)));				\
 	(m_ptr)->m_type = NOTIFY_MESSAGE;				\
@@ -115,6 +121,26 @@ static void set_idle_name(char * name, int n)
 	}
 
 static message m_notify_buff = { 0, NOTIFY_MESSAGE };
+
+#if KERNEL_SCHED_ALG == KERNEL_SCHED_LOTTERY
+	//Adições para algoritmo de loteria
+	static unsigned lottery_seed = 12345;
+
+	static unsigned lottery_rand(void) {
+		lottery_seed = lottery_seed * 1103515245 + 12345;
+		return (lottery_seed / 65536) % 32768;
+	}
+
+	static unsigned lottery_tickets(struct proc *rp)
+	{
+		if (rp->p_nr % 2 == 0) {
+			return 20;
+		}
+		else {
+			return 10;
+		}
+	}
+#endif
 
 void proc_init(void)
 {
@@ -1799,17 +1825,67 @@ static struct proc * pick_proc(void)
    * If there are no processes ready to run, return NULL.
    */
   rdy_head = get_cpulocal_var(run_q_head);
-  for (q=0; q < NR_SCHED_QUEUES; q++) {	
-	if(!(rp = rdy_head[q])) {
-		TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
-		continue;
+
+	#if KERNEL_SCHED_ALG == KERNEL_SCHED_LOTTERY
+	{
+		unsigned total_tickets = 0;
+		unsigned winner;
+		unsigned sum = 0;
+
+		//Encontra a primeira fila de prioridades não vazia, para preservar a lógica original de prioridades do Minix
+		for (q = 0; q < NR_SCHED_QUEUES; q++) {
+			if (rdy_head[q] != NULL) break;
+
+			TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
+		}
+
+		if (q == NR_SCHED_QUEUES) return NULL;
+
+		//Soma bilhetes dos processos prontos nessa fila
+		for (rp = rdy_head[q]; rp != NULL; rp = rp->p_nextready) {
+			assert(proc_is_runnable(rp));
+			total_tickets += lottery_tickets(rp);
+		}
+
+		if (total_tickets == 0) return NULL;
+
+		//Sorteia um bilhete
+		winner = lottery_rand() % total_tickets;
+
+		//Percorre a fila até encontrar o dono do bilhete sorteado
+		for (rp = rdy_head[q]; rp != NULL; rp = rp->p_nextready) {
+			assert(proc_is_runnable(rp));
+
+			sum += lottery_tickets(rp);
+
+			if (sum > winner) {
+				if (priv(rp)->s_flags & BILLABLE) {
+					get_cpulocal_var(bill_ptr) = rp;
+				}
+
+				return rp;
+			}
+		}
+
+		//Fallback de segurança
+		return rdy_head[q];
 	}
-	assert(proc_is_runnable(rp));
-	if (priv(rp)->s_flags & BILLABLE)	 	
-		get_cpulocal_var(bill_ptr) = rp; /* bill for system time */
-	return rp;
-  }
-  return NULL;
+
+	#else
+
+	for (q=0; q < NR_SCHED_QUEUES; q++) {	
+		if(!(rp = rdy_head[q])) {
+			TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
+			continue;
+		}
+		assert(proc_is_runnable(rp));
+		if (priv(rp)->s_flags & BILLABLE)	 	
+			get_cpulocal_var(bill_ptr) = rp; /* bill for system time */
+		return rp;
+	}
+	return NULL;
+	
+	#endif
 }
 
 /*===========================================================================*
