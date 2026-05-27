@@ -28,11 +28,12 @@ static int fair_share_group(int proc_nr_n) {
 #define DEFAULT_USER_TIME_SLICE 200
 
 //Adição para os algoritmos desenvolvidos
+#define ALG_DEFAULT 0
 #define ALG_RR 1
 #define ALG_PRIORITY 2
 #define ALG_FAIR_SHARE 3
 
-#define SCHED_ALG ALG_RR //ALG_PRIORITY //ALG_FAIR_SHARE
+#define SCHED_ALG ALG_RR //ALG_DEFAULT //ALG_PRIORITY //ALG_FAIR_SHARE
 
 static int schedule_process(struct schedproc * rmp, unsigned flags);
 
@@ -274,9 +275,7 @@ int do_start_scheduling(message *m_ptr)
 			rmp->max_priority = USER_Q;
 			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
 	#else
-			if (rmp->priority < MIN_USER_Q) {
-				rmp->priority += 1;
-			}
+		/* Algoritmo padrão do Minix */
 	#endif
 
 	/* Take over scheduling the process. The kernel reply message populates
