@@ -17,6 +17,9 @@ static unsigned balance_timeout;
 
 //Adições para o algoritmo de fração justa
 static unsigned fair_share_usage[2] = {0, 0};
+static unsigned fair_share_proc_count[2] = {0, 0};
+
+#define FAIR_SHARE_THRESHOLD  2
 
 static int fair_share_group(int proc_nr_n) {
 		return proc_nr_n % 2;
@@ -126,14 +129,21 @@ int do_noquantum(message *m_ptr)
 
 				fair_share_usage[group]++;
 
-				if (fair_share_usage[group] > fair_share_usage[other_group] + 2) {
-						rmp->priority = USER_Q + 2;
-						rmp->time_slice = DEFAULT_USER_TIME_SLICE / 2;
-				}
-				else {
-						rmp->priority = USER_Q;
-						rmp->time_slice = DEFAULT_USER_TIME_SLICE;
-				}
+				unsigned self_per_proc  = (fair_share_proc_count[group] > 0)
+                    ? fair_share_usage[group] / fair_share_proc_count[group]
+                    : fair_share_usage[group];
+
+                unsigned other_per_proc = (fair_share_proc_count[other_group] > 0)
+                    ? fair_share_usage[other_group] / fair_share_proc_count[other_group]
+                    : 0;
+
+                if (self_per_proc > other_per_proc + FAIR_SHARE_THRESHOLD) {
+                    rmp->priority  = USER_Q + 2;
+                    rmp->time_slice = DEFAULT_USER_TIME_SLICE / 2;
+                } else {
+                    rmp->priority  = USER_Q;
+                    rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+                }
 
 				rmp->max_priority = USER_Q;
 			}
@@ -169,9 +179,20 @@ int do_stop_scheduling(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
+	
 #ifdef CONFIG_SMP
 	cpu_proc[rmp->cpu]--;
 #endif
+
+#if SCHED_ALG == ALG_FAIR_SHARE
+    {
+        int group = fair_share_group(proc_nr_n);
+
+        /* Remove a contribuição do processo ao sair */
+        if (fair_share_proc_count[group] > 0)
+            fair_share_proc_count[group]--;
+    }
+    #endif
 	rmp->flags = 0; /*&= ~IN_USE;*/
 
 	return OK;
@@ -274,6 +295,8 @@ int do_start_scheduling(message *m_ptr)
 			rmp->priority = USER_Q;
 			rmp->max_priority = USER_Q;
 			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+
+			fair_share_proc_count[fair_share_group(proc_nr_n)]++;
 	#else
 		/* Algoritmo padrão do Minix */
 	#endif
