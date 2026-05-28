@@ -33,7 +33,7 @@ static int fair_share_group(int proc_nr_n) {
 #define ALG_PRIORITY 2
 #define ALG_FAIR_SHARE 3
 
-#define SCHED_ALG ALG_RR //ALG_DEFAULT //ALG_PRIORITY //ALG_FAIR_SHARE
+#define SCHED_ALG ALG_FAIR_SHARE //ALG_DEFAULT //ALG_PRIORITY //ALG_FAIR_SHARE
 
 static int schedule_process(struct schedproc * rmp, unsigned flags);
 
@@ -364,8 +364,6 @@ static int schedule_process(struct schedproc * rmp, unsigned flags)
 	int err;
 	int new_prio, new_quantum, new_cpu, niced;
 
-	pick_cpu(rmp);
-
 	if (flags & SCHEDULE_CHANGE_PRIO)
 		new_prio = rmp->priority;
 	else
@@ -402,11 +400,6 @@ void init_scheduling(void)
 
 	balance_timeout = BALANCE_TIMEOUT * sys_hz();
 
-	#if SCHED_ALG == ALG_FAIR_SHARE
-			fair_share_usage[0] = fair_share_usage[0] / 2;
-			fair_share_usage[1] = fair_share_usage[1] / 2;
-	#endif
-
 	if ((r = sys_setalarm(balance_timeout, 0)) != OK)
 		panic("sys_setalarm failed: %d", r);
 }
@@ -424,6 +417,11 @@ void balance_queues(void)
 {
 	struct schedproc *rmp;
 	int r, proc_nr;
+
+	#if SCHED_ALG == ALG_FAIR_SHARE
+    	fair_share_usage[0] /= 2;
+    	fair_share_usage[1] /= 2;
+	#endif
 
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
 		if (rmp->flags & IN_USE) {
