@@ -33,10 +33,9 @@ static int fair_share_group(int proc_nr_n) {
 //Adição para os algoritmos desenvolvidos
 #define ALG_DEFAULT 0
 #define ALG_RR 1
-#define ALG_PRIORITY 2
-#define ALG_FAIR_SHARE 3
+#define ALG_FAIR_SHARE 2
 
-#define SCHED_ALG ALG_FAIR_SHARE //ALG_DEFAULT //ALG_PRIORITY //ALG_FAIR_SHARE
+#define SCHED_ALG ALG_DEFAULT //ALG_FAIR_SHARE //ALG_FAIR_SHARE
 
 static int schedule_process(struct schedproc * rmp, unsigned flags);
 
@@ -119,34 +118,33 @@ int do_noquantum(message *m_ptr)
 	#if SCHED_ALG == ALG_RR //Se for Round-Robin
 			rmp->priority = USER_Q;
 			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
-	#elif SCHED_ALG == ALG_PRIORITY //Se for algoritmo por prioridade
-			rmp->priority = rmp->max_priority;
-			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
 	#elif SCHED_ALG == ALG_FAIR_SHARE
-			{
-				int group = fair_share_group(proc_nr_n);
-				int other_group = 1 - group;
+	{
+		int group = fair_share_group(proc_nr_n);
+		int other_group = 1 - group;
+		unsigned self_per_proc;
+		unsigned other_per_proc;
 
-				fair_share_usage[group]++;
+		fair_share_usage[group]++;
 
-				unsigned self_per_proc  = (fair_share_proc_count[group] > 0)
-                    ? fair_share_usage[group] / fair_share_proc_count[group]
-                    : fair_share_usage[group];
+		self_per_proc = (fair_share_proc_count[group] > 0)
+			? fair_share_usage[group] / fair_share_proc_count[group]
+			: fair_share_usage[group];
 
-                unsigned other_per_proc = (fair_share_proc_count[other_group] > 0)
-                    ? fair_share_usage[other_group] / fair_share_proc_count[other_group]
-                    : 0;
+		other_per_proc = (fair_share_proc_count[other_group] > 0)
+			? fair_share_usage[other_group] / fair_share_proc_count[other_group]
+			: 0;
 
-                if (self_per_proc > other_per_proc + FAIR_SHARE_THRESHOLD) {
-                    rmp->priority  = USER_Q + 2;
-                    rmp->time_slice = DEFAULT_USER_TIME_SLICE / 2;
-                } else {
-                    rmp->priority  = USER_Q;
-                    rmp->time_slice = DEFAULT_USER_TIME_SLICE;
-                }
+		if (self_per_proc > other_per_proc + FAIR_SHARE_THRESHOLD) {
+			rmp->priority  = USER_Q + 2;
+			rmp->time_slice = DEFAULT_USER_TIME_SLICE / 2;
+		} else {
+			rmp->priority  = USER_Q;
+			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
+		}
 
-				rmp->max_priority = USER_Q;
-			}
+		rmp->max_priority = USER_Q;
+	}
 	#else
 			if (rmp->priority < MIN_USER_Q) {
 				rmp->priority += 1; /* lower priority */
@@ -280,16 +278,6 @@ int do_start_scheduling(message *m_ptr)
 	#if SCHED_ALG == ALG_RR //Se for round-robin
 			rmp->priority = USER_Q;
 			rmp->max_priority = USER_Q;
-			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
-	#elif SCHED_ALG == ALG_PRIORITY //Se for algoritmo de prioridade
-			if (proc_nr_n % 2 == 0) {
-					rmp->priority = USER_Q;
-					rmp->max_priority = USER_Q;
-			}
-			else {
-					rmp->priority = USER_Q + 2;
-					rmp->max_priority = USER_Q + 2;
-			}
 			rmp->time_slice = DEFAULT_USER_TIME_SLICE;
 	#elif SCHED_ALG == ALG_FAIR_SHARE
 			rmp->priority = USER_Q;
