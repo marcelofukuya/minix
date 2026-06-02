@@ -35,7 +35,7 @@ static int fair_share_group(int proc_nr_n) {
 #define ALG_RR 1
 #define ALG_FAIR_SHARE 2
 
-#define SCHED_ALG ALG_DEFAULT //ALG_FAIR_SHARE //ALG_FAIR_SHARE
+#define SCHED_ALG ALG_DEFAULT //ALG_RR //ALG_FAIR_SHARE
 
 static int schedule_process(struct schedproc * rmp, unsigned flags);
 

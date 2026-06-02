@@ -100,7 +100,7 @@ static void set_idle_name(char * name, int n)
 #define KERNEL_SCHED_DEFAULT 1
 #define KERNEL_SCHED_LOTTERY 2
 
-#define KERNEL_SCHED_ALG KERNEL_SCHED_DEFAULT
+#define KERNEL_SCHED_ALG KERNEL_SCHED_LOTTERY
 
 #define BuildNotifyMessage(m_ptr, src, dst_ptr) \
 	memset((m_ptr), 0, sizeof(*(m_ptr)));				\
